@@ -35,7 +35,6 @@ def rand_category(n_obj,n_mors):
     comps2 = {}
     new = []
     for f in mors:
-        print(f)
         comps = {}
         for g in mors:
             try:
@@ -44,8 +43,10 @@ def rand_category(n_obj,n_mors):
                     continue
                 comps[g[0]]=h[0]
             except:
-                mors.append((len(mors),[choice(objs),choice(objs)]))
+                mors.append((len(mors),[f[1][0],g[1][1]]))
+                comps[g[0]]=mors[-1][0]
 
+        
         comps2[f[0]]=comps
 
     return list(zip(mors,map(lambda f:comps2[f[0]],mors)))
@@ -77,7 +78,7 @@ def draw_cat(n_ob,C):
 
 
 
-n_ob,n_mo=2,5
+n_ob,n_mo=10,10
 
 
 C=rand_category(n_ob,n_mo)
