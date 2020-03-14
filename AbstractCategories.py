@@ -9,23 +9,19 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from functools import *
 
-
-
-
+def choose_composite(mors,f,g):
+    if g[1][0]!=f[1][1]:
+        return None
+    
+    mors2 = list(filter(lambda h_:(h_[1][0]==f[1][0]) and (h_[1][1]==g[1][1]),mors))
+    h = choice(mors2)
+    
         
+    return h
+
+    
 
 def rand_category(n_obj,n_mors):
-    def choose_composite(mors,f,g):
-        if g[1][0]!=f[1][1]:
-            return None
-                
-        h = choice(list(filter(lambda h_:(h_[1][0]==f[1][0]) and (h_[1][1]==g[1][1]),mors)))
-        
-        return h
-        
-        
-    
-    
     objs = range(n_obj)
     mors = []
     
@@ -39,6 +35,7 @@ def rand_category(n_obj,n_mors):
     comps2 = {}
     new = []
     for f in mors:
+        print(f)
         comps = {}
         for g in mors:
             try:
@@ -47,38 +44,11 @@ def rand_category(n_obj,n_mors):
                     continue
                 comps[g[0]]=h[0]
             except:
-                nn+=1
-                comps[g[0]]=nn
-                new.append((nn,[f[1][0],g[1][1]]))
-        print(comps)
+                mors.append((len(mors),[choice(objs),choice(objs)]))
+
         comps2[f[0]]=comps
-          #TODO: add new morphisms and their compositions to the category 
 
-            
-        
-
-    
-    while new!=[]:
-        print(nn)
-        f=new.pop()
-        mors.append(f)
-        for g in mors:
-            try:
-                h=choose_composite(mors,f,g)
-                if h==None:
-                    continue
-                comps2[g[0]][f[0]]=h[0]
-            except:
-                nn+=1
-                comps2[g[0]][f[0]]=nn
-                new.append((nn,[f[1][0],g[1][1]]))
-                for h2 in mors:
-                    h3 = choose_composite(mors,h2,f)
-                    if h3==None:
-                        continue
-                    comps2[g[0]][f[0]]=h3[0]
-    
-    return list(zip(mors,comps2.values()))
+    return list(zip(mors,map(lambda f:comps2[f[0]],mors)))
 
 
 def compose(cat,expr):
@@ -107,7 +77,7 @@ def draw_cat(n_ob,C):
 
 
 
-n_ob,n_mo=5,4
+n_ob,n_mo=2,5
 
 
 C=rand_category(n_ob,n_mo)
@@ -115,10 +85,12 @@ for mor in C:
     print(mor)
 
 draw_cat(n_ob,C)
-
-for f in C:
-    for g in C:
-        print(f[0][0],g[0][0],compose(C,[f,g]))
+# =============================================================================
+# 
+# for f in C:
+#     for g in C:
+#         print(f[0][0],g[0][0],compose(C,[f,g]))
+# =============================================================================
 
 
 
