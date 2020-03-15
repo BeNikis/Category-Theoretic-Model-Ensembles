@@ -86,19 +86,21 @@ def draw_cat(n_ob,C):
 
 def cat2tensor(C):
     out = []
+    div=len(C)
     for mor in C:
-        out+=[0,mor[0][0],1,mor[0][1][0],1,mor[0][1][1]]
+        out+=[0,mor[0][0]/div,1,mor[0][1][0],1,mor[0][1][1]/div]
         
         for k,v in mor[1].items():
-            out+=[0,k,0,v]
+            out+=[0,k/div,0,v/div]
     
     out+=[2,0]
     return out
 
-def expr2tensor(expr):
+def expr2tensor(expr,div=0):
     out = []
+    
     for f in expr:
-        out+=[0,f]
+        out+=[0,f/div]
         
     return out
     
@@ -113,12 +115,12 @@ def rand_expr(C):
 n_ob,n_mo=2,15
 
 
-C=rand_category(n_ob,n_mo)
-for mor in C:
-    print(mor)
+#C=rand_category(n_ob,n_mo)
+#for mor in C:
+#    print(mor)
 
-t=cat2tensor(C)
-draw_cat(n_ob,C)
+#t=cat2tensor(C)
+#draw_cat(n_ob,C)
 
 #---------------
 def plot_data(datapoints):
@@ -176,9 +178,14 @@ def one_hot_compare(x,y):
     return torch.tensor(np.array(o),dtype=torch.float32)
 
 torch.set_default_dtype(torch.float32)
+batchsize=25
+embedding=2
 
-rnn = nn.LSTM(2,16,3)
-net = create_fc_network(16*3,30,3,1)
+encoder_layer = nn.TransformerEncoderLayer(d_model=embedding, nhead=2)
+rnn = nn.TransformerEncoder(encoder_layer,3)
+
+
+net = create_fc_network(embedding,30,3,1)
 qann=lambda x:net(x)-1
 
 opt = optim.Adam(list(rnn.parameters())+list(net.parameters()))
@@ -189,29 +196,37 @@ err_plot = []
 
 
 
-batchsize=25
+
 
 numornone=lambda x:-1 if x==None else x
 try:
     for e in range(1000):
-        C=rand_category(2,15)
+        C=rand_category(2,2)
+        #for m in C:
+        #    print(m)
+            
+        
         Ct=cat2tensor(C)
         batch = []
         for q in range(batchsize):
             ex=rand_expr(C)
-            item=[np.array(Ct+expr2tensor(ex)),np.array([numornone(compose(C,ex))])]
-            #print(item)
+            item=[np.array(Ct+expr2tensor(ex,len(C))),np.array([numornone(compose(C,ex))])]
+            item[0]=item[0].reshape(-1,embedding)
+            
             batch.append([torch.tensor(item[0],dtype=torch.float32),torch.tensor(item[1],dtype=torch.float32)])
         
         opt.zero_grad()
         
-        arr=nn.utils.rnn.pad_sequence(list(map(lambda i:i[0],batch)))
+        inp=list(map(lambda i:i[0],batch))
+        inp=nn.utils.rnn.pad_sequence(inp)
         
-        inp=arr.view(-1,batchsize,2)
-        nno,hidden=rnn(inp)[-1]
+        #inp=inp.view(-1,25,2)
+        #print(inp)
+        #inp=torch.stack(inp)
+        nno=rnn(inp)[-1]
         
         
-        out=qann(nno.view(batchsize,3*16))
+        out=qann(nno)
         l = loss(out,torch.tensor(list(map(lambda b:b[1],batch)),dtype=torch.float32)).mean()
         
         err_plot.append([l.item()])
