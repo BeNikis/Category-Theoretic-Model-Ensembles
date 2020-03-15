@@ -109,7 +109,7 @@ def rand_expr(C):
     l=choice(range(1,20))
     expr=[]
     for i in range(l):
-        expr.append(choice(C)[0][0])
+        expr+=[1,choice(C)[0][0]]
     
     return expr
 n_ob,n_mo=2,15
@@ -184,11 +184,13 @@ embedding=2
 encoder_layer = nn.TransformerEncoderLayer(d_model=embedding, nhead=2)
 rnn = nn.TransformerEncoder(encoder_layer,3)
 
+encdecnet = nn.Transformer(2,2,2,2,32)#nn.Sequential(*[nn.LSTM(2,32,3),nn.LSTM(32,2)])#
+encdec = lambda x,y:encdecnet(x,y)-1
 
 net = create_fc_network(embedding,30,3,1)
 qann=lambda x:net(x)-1
 
-opt = optim.Adam(list(rnn.parameters())+list(net.parameters()))
+opt = optim.Adam(encdecnet.parameters())
 
 loss=nn.MSELoss()
 
@@ -198,36 +200,47 @@ err_plot = []
 
 
 
-numornone=lambda x:-1 if x==None else x
+numornone=lambda x:[1,-1] if x==None else [1,x]
 try:
     for e in range(1000):
-        C=rand_category(2,2)
+        C=rand_category(5,10)
         #for m in C:
         #    print(m)
             
         
         Ct=cat2tensor(C)
-        batch = []
+        batch = []#torch.tensor([[Ct]])
+        
+        
         for q in range(batchsize):
             ex=rand_expr(C)
-            item=[np.array(Ct+expr2tensor(ex,len(C))),np.array([numornone(compose(C,ex))])]
-            item[0]=item[0].reshape(-1,embedding)
+            item=[np.array(Ct+ex),np.array([numornone(compose(C,ex))])]
+            #item[0]=item[0].reshape(-1,embedding)
             
             batch.append([torch.tensor(item[0],dtype=torch.float32),torch.tensor(item[1],dtype=torch.float32)])
         
         opt.zero_grad()
         
-        inp=list(map(lambda i:i[0],batch))
-        inp=nn.utils.rnn.pad_sequence(inp)
+        #inp=list(map(lambda i:i[0],batch))
         
         #inp=inp.view(-1,25,2)
         #print(inp)
         #inp=torch.stack(inp)
-        nno=rnn(inp)[-1]
+        #nno=rnn(inp)[-1]
         
+        #inp=batch[0][0]
+        #batch=batch.view(-1,1,2)
         
-        out=qann(nno)
-        l = loss(out,torch.tensor(list(map(lambda b:b[1],batch)),dtype=torch.float32)).mean()
+        inp=nn.utils.rnn.pad_sequence(list(map(lambda i:i[0],batch)))
+        inp=inp.view(-1,batchsize,embedding)
+        
+        #inp = torch.stack(inp)
+        outp = torch.stack(list(map(lambda i:i[1],batch)))
+        outp = outp.view(-1,batchsize,embedding)
+        
+        out=encdec(inp,outp)#qann(nno)
+        
+        l = loss(out,outp).mean()#loss(out,torch.tensor(list(map(lambda b:b[1],batch)),dtype=torch.float32)).mean()
         
         err_plot.append([l.item()])
         print(e,err_plot[-1])
