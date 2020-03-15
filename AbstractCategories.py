@@ -109,11 +109,14 @@ def rand_expr(C):
     l=choice(range(1,10))
     expr=[choice(C)[0][0]]
     for i in range(l):
-        chosen = choice(list(C[expr[-1]][1].keys()))
-        expr.append(chosen)
+        try:
+            chosen = choice(list(C[expr[-1]][1].keys()))
+            expr.append(chosen)
+        except:
+            return expr
         
     return expr
-n_ob,n_mo=2,15
+n_ob,n_mo=2,5
 
 
 C=rand_category(n_ob,n_mo)
@@ -207,8 +210,9 @@ err_plot = []
 
 numornone=lambda x,div:[1,-1] if x==None else [1,x/div]
 try:
-    for e in range(1000):
-        C=rand_category(n_ob,n_mo)
+    for e in range(10000):
+        
+        C=rand_category(choice(range(n_ob,n_ob+7)),choice(range(n_mo,n_mo+7)))
         #for m in C:
         #    print(m)
             
