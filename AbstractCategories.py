@@ -66,7 +66,7 @@ def compose(cat,expr):
     c = expr[0]
     for g in expr[1:]:
         try:
-            c=cat[c[1][g[0][0]]]
+            c=cat[c][1][g]
         except:
             return None
     
@@ -100,28 +100,33 @@ def expr2tensor(expr,div=0):
     out = []
     
     for f in expr:
-        out+=[0,f/div]
+        out+=[1,f/div]
         
     return out
     
 
 def rand_expr(C):
-    l=choice(range(1,20))
-    expr=[]
+    l=choice(range(1,10))
+    expr=[choice(C)[0][0]]
     for i in range(l):
-        expr+=[1,choice(C)[0][0]]
-    
+        chosen = choice(list(C[expr[-1]][1].keys()))
+        expr.append(chosen)
+        
     return expr
 n_ob,n_mo=2,15
 
 
-#C=rand_category(n_ob,n_mo)
-#for mor in C:
-#    print(mor)
+C=rand_category(n_ob,n_mo)
+for mor in C:
+    print(mor)
 
-#t=cat2tensor(C)
-#draw_cat(n_ob,C)
+t=cat2tensor(C)
+draw_cat(n_ob,C)
+plt.show()
 
+for i in range(10):
+    ex=rand_expr(C)
+    print(ex,"=",compose(C,ex))
 #---------------
 def plot_data(datapoints):
     
@@ -200,10 +205,10 @@ err_plot = []
 
 
 
-numornone=lambda x:[1,-1] if x==None else [1,x]
+numornone=lambda x,div:[1,-1] if x==None else [1,x/div]
 try:
     for e in range(1000):
-        C=rand_category(5,10)
+        C=rand_category(n_ob,n_mo)
         #for m in C:
         #    print(m)
             
@@ -214,7 +219,9 @@ try:
         
         for q in range(batchsize):
             ex=rand_expr(C)
-            item=[np.array(Ct+ex),np.array([numornone(compose(C,ex))])]
+            ext=expr2tensor(ex,float(len(C)))
+            item=[np.array(Ct+ext),np.array([numornone(compose(C,ex),len(C))])]
+            #item[1][0][1]=item[1][0][1]/float(len(C))
             #item[0]=item[0].reshape(-1,embedding)
             
             batch.append([torch.tensor(item[0],dtype=torch.float32),torch.tensor(item[1],dtype=torch.float32)])
