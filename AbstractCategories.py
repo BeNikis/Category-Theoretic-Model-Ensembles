@@ -178,45 +178,50 @@ def one_hot_compare(x,y):
 torch.set_default_dtype(torch.float32)
 
 rnn = nn.LSTM(2,16,3)
-qann = create_fc_network(16*3,30,3,1)
+net = create_fc_network(16*3,30,3,1)
+qann=lambda x:net(x)-1
 
-opt = optim.Adam(list(rnn.parameters())+list(qann.parameters()))
+opt = optim.Adam(list(rnn.parameters())+list(net.parameters()))
 
-loss=lambda x,y:torch.abs(x-y)
+loss=nn.MSELoss()
 
 err_plot = []
 
 
+
+batchsize=25
+
 numornone=lambda x:-1 if x==None else x
-for e in range(100):
-    C=rand_category(2,15)
-    Ct=cat2tensor(C)
-    batch = []
-    for q in range(50):
-        ex=rand_expr(C)
-        item=[np.array(Ct+expr2tensor(ex)),np.array([numornone(compose(C,ex))])]
-        #print(item)
-        batch.append([torch.tensor(item[0],dtype=torch.float32),torch.tensor(item[1],dtype=torch.float32)])
-    
-    opt.zero_grad()
-    
-    arr=nn.utils.rnn.pad_sequence(list(map(lambda i:i[0],batch)))
-    
-    inp=arr.view(-1,50,2)
-    nno,hidden=rnn(inp)[-1]
-    
-    
-    out=qann(nno.view(50,3*16))
-    l = loss(out,torch.tensor(list(map(lambda b:b[1],batch)),dtype=torch.float32)).mean()
-    
-    err_plot.append([l.item()])
-    print(e,err_plot[-1])
-    l.backward()
-    opt.step()
+try:
+    for e in range(1000):
+        C=rand_category(2,15)
+        Ct=cat2tensor(C)
+        batch = []
+        for q in range(batchsize):
+            ex=rand_expr(C)
+            item=[np.array(Ct+expr2tensor(ex)),np.array([numornone(compose(C,ex))])]
+            #print(item)
+            batch.append([torch.tensor(item[0],dtype=torch.float32),torch.tensor(item[1],dtype=torch.float32)])
         
+        opt.zero_grad()
+        
+        arr=nn.utils.rnn.pad_sequence(list(map(lambda i:i[0],batch)))
+        
+        inp=arr.view(-1,batchsize,2)
+        nno,hidden=rnn(inp)[-1]
+        
+        
+        out=qann(nno.view(batchsize,3*16))
+        l = loss(out,torch.tensor(list(map(lambda b:b[1],batch)),dtype=torch.float32)).mean()
+        
+        err_plot.append([l.item()])
+        print(e,err_plot[-1])
+        l.backward()
+        opt.step()
+except KeyboardInterrupt:
+    pass        
 plot_data(err_plot)  
         
-
 
 
 
