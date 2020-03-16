@@ -88,11 +88,11 @@ def cat2tensor(C):
     out = []
     div=len(C)
     for mor in C:
-        out+=[0,mor[0][0]/div,1,mor[0][1][0],1,mor[0][1][1]/div]
+        out+=[0,mor[0][0],1,mor[0][1][0],1,mor[0][1][1]]
         out+=[2,0]
         
         for k,v in mor[1].items():
-            out+=[0,k/div,0,v/div]
+            out+=[0,k,0,v]
         
     
     out+=[3,0]
@@ -102,7 +102,7 @@ def expr2tensor(expr,div=1):
     out = []
     
     for f in expr:
-        out+=[1,f/div]
+        out+=[1,f]
         
     return out
     
@@ -187,11 +187,11 @@ def one_hot_compare(x,y):
     
     return torch.tensor(np.array(o),dtype=torch.float32)
 
-def learn_composition(model):
+def learn_composition(model,params=None):
 
     encdec = lambda x,y:model(x,y)-1
     
-    opt = optim.Adam(model.parameters())
+    opt = optim.Adam(params if params!=None else model.parameters())
     
     loss=nn.MSELoss()
     
@@ -226,7 +226,7 @@ def learn_composition(model):
             
             outp = torch.stack(list(map(lambda i:i[1],batch)))
             outp = outp.view(-1,batchsize,embedding)
-            
+
             out=encdec(inp,outp)#,outp)
             
             l = loss(out,outp).mean()#loss(out,torch.tensor(list(map(lambda b:b[1],batch)),dtype=torch.float32)).mean()
@@ -247,14 +247,14 @@ batchsize=25
 embedding=2
 
 
-enc = nn.TransformerEncoderLayer(2,2,32)
+#enc = nn.TransformerEncoderLayer(2,2,32)
 
-encdecnet = nn.Transformer(2,2,1,1,16)
+encdecnet =nn.Transformer(2,2,1,1,16)
 
 
         
+model = encdecnet
 
 
-
-learn_composition(encdecnet)
+learn_composition(model)
             
