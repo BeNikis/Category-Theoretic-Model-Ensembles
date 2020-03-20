@@ -140,7 +140,8 @@ class Category:
         return out
     
     #returns a dict of lists where the key is the target of the morphisms in the list,going from src
-    def all_paths_from(self,src,visited=[]):
+    #exclude is a list of morphisms/objects to not use
+    def all_paths_from(self,src,exclude=[],visited=[]):
         def combine_dicts(d1,d2):
             
             comb = {}
@@ -162,6 +163,8 @@ class Category:
 #        visited.append(src)
         #print(list(map(str,visited)))
         for f in step:
+            if (f in exclude) or (f.tgt in exclude):
+                continue
             #print(str(f),{str(k):list(map(str,v)) for k,v in paths})
             if f.tgt not in paths.keys():
                 paths[f.tgt]=[]
@@ -175,7 +178,7 @@ class Category:
                 continue
             
            
-            paths=combine_dicts(paths,{k:[f.compose(g) for g in v] for k,v in self.all_paths_from(f.tgt,visited+[f.tgt]).items()})
+            paths=combine_dicts(paths,{k:[f.compose(g) for g in v] for k,v in self.all_paths_from(f.tgt,exclude,visited+[f.tgt]).items()})
             
         
         #print("VIS",list(map(str,visited)))
@@ -235,6 +238,7 @@ if __name__=="__main__":
     
     C.add_morphism(Morphism(str(n_obs-1)+"->"+str(0),rand_fin_f(5,5),obs[-1],obs[0]))
     C.add_morphism(Morphism(str(0)+"->A",rand_fin_f(5,5),obs[0],Object("A",[5])))
+    C.add_morphism(Morphism("0->2",rand_fin_f(5,5),obs[0],obs[2]))
 # =============================================================================
 #     
 #     
@@ -252,7 +256,7 @@ if __name__=="__main__":
     C.draw()
     print(print_dict(C.ms[obs[0]]))
     for ob in obs:
-        print(str(ob)+" : " ,print_dict(C.all_paths_from(ob)))
+        print(str(ob)+" : " ,print_dict(C.all_paths_from(ob,[obs[2]])))
 
 
 
