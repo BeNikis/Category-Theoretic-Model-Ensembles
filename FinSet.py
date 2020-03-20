@@ -8,15 +8,15 @@ from random import choice
 import copy
 import itl
 
-
+import networkx as nx
+import matplotlib.pyplot as plt
 
 class Object:
 
-    def __init__(self,name,shape,eq=lambda x,y:abs(x-y)):
+    def __init__(self,name,shape,metric=lambda x,y:abs(x-y)):
         self.name = name
         self.shape=shape
-        self.eq=eq
-
+        self.metric=metric
 
         self.special={}
         
@@ -27,7 +27,13 @@ class Object:
         return self.name
     
     def __call__(self,x,y):
-        return self.eq(x,y)
+        return self.metric(x,y)
+    
+    def __eq__(self,other):
+        return self.name==other.name
+    
+    def __hash__(self):
+        return hash(self.name)
 
 class Morphism:
     i=0
@@ -57,7 +63,7 @@ class Morphism:
         return self.name
     
     def compose(self,*expr):
-        
+        #print(list(map(str,expr)))
         expr=(self if type(self.f)==list else [self])+list(expr)
         
         return Morphism(str(expr),expr,self.src,expr[-1].tgt)
@@ -130,21 +136,46 @@ class Category:
         for tgt in self.ms[src].keys():
             out+=self.ms[src][tgt]
         return out
-        
+    
+    #returns a dict of lists where the key is the target of the morphisms in the list,going from src
     def all_paths_from(self,src,visited=[]):
-
-        paths=[]
+        def combine_dicts(d1,d2):
+            
+            comb = {}
+            
+            for k1,v1 in d1.items():
+                comb[k1]=v1
+                
+            for k2,v2 in d2.items():
+                if k2 not in comb.keys():
+                    comb[k2]=[]
+                    
+                comb[k2]+=v2
+            
+            #print("COMB",print_dict(d1),print_dict(d2),print_dict(comb))
+            return comb
+            
+        paths={}
         step=self.one_step(src)
+        visited.append(src)
         for f in step:
-            if f in paths:
-                continue
-            paths.append(f)
+            #print(str(f),{str(k):list(map(str,v)) for k,v in paths})
+            if f.tgt not in paths.keys():
+                paths[f.tgt]=[]
+            
+            #if f in paths[f.tgt]:
+            #    continue
+            
+            paths[f.tgt].append(f)
             
             if f.tgt in visited:
                 continue
             
-            paths+=map(lambda g:f.compose(g),self.one_step(f.tgt))
+            
+            paths=combine_dicts(paths,{k:[f.compose(g) for g in v] for k,v in self.all_paths_from(f.tgt,copy.copy(visited)).items()})
+            
         
+        #print("VIS",list(map(str,visited)))
         return paths
             
             
@@ -157,7 +188,21 @@ class Category:
             
             paths += map(lambda f:d.compose(f),self.one_step(d.tgt))
             
-                
+    def draw(self):
+        G=nx.DiGraph()
+        
+        map(lambda n:G.add_node(n),self.os)
+        
+        for src in self.ms.keys():
+            for tgt in self.ms[src].keys():
+                G.add_edge(src,tgt)
+        
+        nx.draw(G, with_labels=True, font_weight='bold')
+        plt.show()
+        return          
+    
+def print_dict(d):
+    return {str(k) : list(map(str,v)) for k,v in d.items()}
             
 def rand_fin_f(srcS,tgtS):
     f=[choice(range(tgtS)) for i in range(srcS)]
@@ -174,24 +219,38 @@ def I(f,x):
     
     return itl.mutual_information(yM,xM)
 
+if __name__=="__main__":
+    n_obs=5
+    n_mors=15
+    C=Category()
+    
+    obs = [Object(str(i),[5]) for i in range(n_obs)]
+    
+    
+    for i in range(n_obs-1):
+        C.add_morphism(Morphism(str(i)+"->"+str(i+1),rand_fin_f(5,5),obs[i],obs[i+1]))
+    
+    C.add_morphism(Morphism(str(n_obs)+"->"+str(1),rand_fin_f(5,5),obs[-1],obs[0]))
+# =============================================================================
+#     
+#     
+#     objs = [Object(str(i),[5]) for i in range(n_obs)]
+#     
+#     for i in range(n_obs):
+#         C.add_object(objs[i])
+#     
+#     for i in range(n_mors):
+#         o1,o2=choice(objs),choice(objs)
+#         C.add_morphism(Morphism(str(o1)+"->"+str(o2),rand_fin_f(5,5),o1,o2))
+#         
+#     
+# =============================================================================
+    C.draw()
+
+    for ob in obs:
+        print(str(ob)+" : " ,print_dict(C.all_paths_from(ob)))
 
 
-C=Category()
-
-E,N=Object("A",10),Object("B",10)
-
-f=Morphism("f",rand_fin_f(E.shape,N.shape),E,N)
-g=Morphism("g",rand_fin_f(E.shape,N.shape),N,E)
-d = DataMorphism("data",[],N)
-
-C.add_morphism(f)
-C.add_morphism(g)
-C.add_morphism(Morphism("h",rand_fin_f(E.shape,N.shape),E,N))
-
-print(f.compose(g)(2))
-
-print(list(map(str,C.one_step(E))))
-print(list(map(str,C.all_paths_from(E))))
 
 
     
