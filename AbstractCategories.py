@@ -108,7 +108,7 @@ def expr2tensor(expr,div=1):
     
 
 def rand_expr(C):
-    l=choice(range(1,10))
+    l=choice(range(1,50))
     expr=[choice(C)[0][0]]
     for i in range(l):
         try:
