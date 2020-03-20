@@ -95,12 +95,14 @@ class Category:
         self.os.add(f.src)
         self.os.add(f.tgt)
         
-        try:
-            self.ms[f.src][f.tgt].append(f)
-        except:
+        if f.src not in self.ms.keys():
             self.ms[f.src]={}
+            
+        if f.tgt not in self.ms[f.src].keys():
             self.ms[f.src][f.tgt]=[f]
-        
+        else:
+            self.ms[f.src][f.tgt].append(f)
+            
         if f is DataMorphism:
             self.input.append(f)
             
@@ -157,12 +159,13 @@ class Category:
             
         paths={}
         step=self.one_step(src)
-        visited.append(src)
+#        visited.append(src)
+        #print(list(map(str,visited)))
         for f in step:
             #print(str(f),{str(k):list(map(str,v)) for k,v in paths})
             if f.tgt not in paths.keys():
                 paths[f.tgt]=[]
-            
+
             #if f in paths[f.tgt]:
             #    continue
             
@@ -171,8 +174,8 @@ class Category:
             if f.tgt in visited:
                 continue
             
-            
-            paths=combine_dicts(paths,{k:[f.compose(g) for g in v] for k,v in self.all_paths_from(f.tgt,copy.copy(visited)).items()})
+           
+            paths=combine_dicts(paths,{k:[f.compose(g) for g in v] for k,v in self.all_paths_from(f.tgt,visited+[f.tgt]).items()})
             
         
         #print("VIS",list(map(str,visited)))
@@ -230,7 +233,8 @@ if __name__=="__main__":
     for i in range(n_obs-1):
         C.add_morphism(Morphism(str(i)+"->"+str(i+1),rand_fin_f(5,5),obs[i],obs[i+1]))
     
-    C.add_morphism(Morphism(str(n_obs)+"->"+str(1),rand_fin_f(5,5),obs[-1],obs[0]))
+    C.add_morphism(Morphism(str(n_obs-1)+"->"+str(0),rand_fin_f(5,5),obs[-1],obs[0]))
+    C.add_morphism(Morphism(str(0)+"->A",rand_fin_f(5,5),obs[0],Object("A",[5])))
 # =============================================================================
 #     
 #     
@@ -246,7 +250,7 @@ if __name__=="__main__":
 #     
 # =============================================================================
     C.draw()
-
+    print(print_dict(C.ms[obs[0]]))
     for ob in obs:
         print(str(ob)+" : " ,print_dict(C.all_paths_from(ob)))
 
