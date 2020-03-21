@@ -27,7 +27,11 @@ class Object:
         return self.name
     
     def __call__(self,x,y):
-        return self.metric(x,y)
+        if type(x)==list:
+            ret = list(map(lambda pair:self.metric(pair[0],pair[1]),zip(x,y)))
+        else:
+            ret = self.metric(x,y)
+        return ret
     
     def __eq__(self,other):
         return self.name==other.name
@@ -45,11 +49,17 @@ class Morphism:
         
         self.special = {}
         
-    def __call__(self,x):
+    def __call__(self,x=None):
         y=x
+        if type(self)==DataMorphism:
+            y=self.data
+        
         if type(self.f)==list:
             for m in self.f:
-                y=m(y)
+                if type(y)!=list:
+                    y=m(y)
+                else:
+                    y=list(map(m,y))
         else:
             y=self.f(x)
             
@@ -61,6 +71,9 @@ class Morphism:
         if type(self.f)==list:
             return "*".join(map(str,self.f))
         return self.name
+    
+    def __repr__(self):
+        return self.__str__()
     
     def compose(self,*expr):
         #print(list(map(str,expr)))
@@ -76,12 +89,17 @@ class Morphism:
 
 class DataMorphism(Morphism):
     def __init__(self,name,data,tgt):
-        super(DataMorphism,self).__init__(name,data,None,tgt)
+        super(DataMorphism,self).__init__(name,None,None,tgt)
+        self.data=data
         
     def __call__(self,index=None):
         if not index:
-            return []
-        return self.f[index]
+            return self.data
+        return self.data[index]
+    
+
+        
+
     
 class Category:
     def __init__(self):
@@ -103,7 +121,7 @@ class Category:
         else:
             self.ms[f.src][f.tgt].append(f)
             
-        if f is DataMorphism:
+        if type(f)==DataMorphism:
             self.input.append(f)
             
             
@@ -142,21 +160,7 @@ class Category:
     #returns a dict of lists where the key is the target of the morphisms in the list,going from src
     #exclude is a list of morphisms/objects to not use
     def all_paths_from(self,src,exclude=[],visited=[]):
-        def combine_dicts(d1,d2):
-            
-            comb = {}
-            
-            for k1,v1 in d1.items():
-                comb[k1]=v1
-                
-            for k2,v2 in d2.items():
-                if k2 not in comb.keys():
-                    comb[k2]=[]
-                    
-                comb[k2]+=v2
-            
-            #print("COMB",print_dict(d1),print_dict(d2),print_dict(comb))
-            return comb
+        
             
         paths={}
         step=self.one_step(src)
@@ -187,12 +191,33 @@ class Category:
             
                 
     def diagram_commute_scores(self):
-        paths = []
-        score = 0 
-        
-        for d in self.input:
+        paths = {d.tgt:{} for d in self.input}
+
+        for d in self.input: 
             
-            paths += map(lambda f:d.compose(f),self.one_step(d.tgt))
+            paths[d.tgt] = {k:list(map(lambda f:d.compose(f),v)) for k,v in self.all_paths_from(d.tgt).items()}
+        
+        scores = {}
+        visited = []
+        for src in paths.keys():
+            for tgt in paths[src].keys():
+                for p1 in paths[src][tgt]:
+
+                    for p2 in paths[src][tgt]:
+                        
+                        if (p2,p1) in visited:
+                            continue
+                        visited.append((p1,p2))
+                        
+                        if p1!=p2:
+                            if p1 not in scores.keys():
+                                scores[p1]={}
+                                
+                            scores[p1][p2]=p1.tgt(p1(),p2())
+        
+        return scores
+
+                            
             
     def draw(self):
         G=nx.DiGraph()
@@ -206,7 +231,23 @@ class Category:
         nx.draw(G, with_labels=True, font_weight='bold')
         plt.show()
         return          
-    
+
+def combine_dicts(d1,d2):
+            
+            comb = {}
+            
+            for k1,v1 in d1.items():
+                comb[k1]=v1
+                
+            for k2,v2 in d2.items():
+                if k2 not in comb.keys():
+                    comb[k2]=[]
+                    
+                comb[k2]+=v2
+            
+            #print("COMB",print_dict(d1),print_dict(d2),print_dict(comb))
+            return comb
+   
 def print_dict(d):
     return {str(k) : list(map(str,v)) for k,v in d.items()}
             
@@ -239,6 +280,13 @@ if __name__=="__main__":
     C.add_morphism(Morphism(str(n_obs-1)+"->"+str(0),rand_fin_f(5,5),obs[-1],obs[0]))
     C.add_morphism(Morphism(str(0)+"->A",rand_fin_f(5,5),obs[0],Object("A",[5])))
     C.add_morphism(Morphism("0->2",rand_fin_f(5,5),obs[0],obs[2]))
+    C.add_morphism(DataMorphism("test",[1,2,3],obs[0]))
+    
+    t=C.diagram_commute_scores()
+    print("SCORES:\n")
+    
+    for k,v in t.items():
+        print(str(k),":",v)
 # =============================================================================
 #     
 #     
@@ -256,7 +304,7 @@ if __name__=="__main__":
     C.draw()
     print(print_dict(C.ms[obs[0]]))
     for ob in obs:
-        print(str(ob)+" : " ,print_dict(C.all_paths_from(ob,[obs[2]])))
+        print(str(ob)+" : " ,print_dict(C.all_paths_from(ob)))
 
 
 
