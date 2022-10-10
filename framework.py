@@ -7,25 +7,28 @@ Created on Tue Mar 10 16:54:58 2020
 
 from random import *
 import copy
-import itl
+
 
 import networkx as nx
 import matplotlib.pyplot as plt
 
 class Object:
 
-    def __init__(self,name,shape,metric=lambda x,y:abs(x-y)):
+    def __init__(self,name,contents=None,metric=lambda x,y:x==y):
         self.name = name
-        self.shape=shape
+        self.type=None if not contents else type(contents)
         self.metric=metric
 
-        self.special={}
+        
         
     def named_morphisms(self):
         return self.special
     
     def __str__(self):
         return self.name
+    
+    def __repr__(self):
+        return self.__str__()
     
     def __call__(self,x,y):
         if type(x)==list:
@@ -40,11 +43,34 @@ class Object:
     def __hash__(self):
         return hash(self.name)
 
+#class for distinguishing all special objects (like products) in the class hierarchy
+class SpecialObject(Object):
+    def __init__(self,name,contents=None,metric=lambda x,y:x==y):
+        super().__init__(name,contents,metric)
+        self.obs = []
+        self.special=[]
+
+class ProductObject(SpecialObject):
+    def __init__(self,*OBS):
+        super().__init__("x".join(map(lambda o:o.name,OBS)))
+        self.obs = OBS
+        self.type = list(map(type,self.obs))
+        self.metric = lambda x,y:list(map(lambda o:o.metric(x,y),self.obs))
+        
+        
+        
+        
+        for i in range(len(self.obs)):
+            self.special.append(Morphism("p"+str(i),self,self.obs[i],lambda x:self.obs[self.obs[i](x)]))
+    
+
+
 class Morphism:
     i=0
-    def __init__(self,name,f,src,tgt):
+    def __init__(self,name,src,tgt,f=None):
         self.name = name
         self.f=f
+        
         self.src=src
         self.tgt=tgt
         
@@ -90,29 +116,71 @@ class Morphism:
 
 class DataMorphism(Morphism):
     def __init__(self,name,data,tgt):
-        super(DataMorphism,self).__init__(name,None,None,tgt)
         self.data=data
+        super(DataMorphism,self).__init__(name,'*',tgt,lambda x=None:self.data)
         
+    
+    def __index__(self,index):
+        return self(index)
+    
     def __call__(self,index=None):
         if not index:
             return self.data
         return self.data[index]
     
 
+#Morphisms which can take input ang give output from/into any object of the given types
+class KernelMorphism(Morphism):
+    def __init__(self,name,src_t,tgt_t,f=None):
+        self.name = name
+        self.f=f
         
+        self.src=src_t
+        self.tgt=tgt_t
+        
+        self.special = {}
+        
+    def __call__(self,x=None):
+  
+        if type(x)==self.src_t:
+            y=self.f(x)
+            if y==self.tgt_t:
+                return y
+            else:
+                raise TypeError("Kernel morphism "+self.name+" takes type " + self.src+" but was given " + type(x))
+        else:
+            raise TypeError("Kernel morphism "+self.name+" takes type " + self.src+" but was given " + type(x))
+    
 
+class HiddenMorphism(Morphism):
+    pass
+
+class OptimisableMorphism(Morphism):
+    pass
     
 class Category:
-    def __init__(self):
-        self.os = set()
+
+    
+    def __init__(self,ob_list:list=[],mor_list=[]):
+        self.os = set() 
         self.ms = {}
         
+        
         self.input = []
+        self.kernel_ms = []
+        self.optimizable_ms=[]
+        for o in ob_list:
+            self.add_object(o)
+        for m in mor_list:
+            self.add_morphism(m)
+        
         return
     
     def add_morphism(self,f):
-        self.os.add(f.src)
-        self.os.add(f.tgt)
+        if f.src not in self.os:
+            self.add_object(f.src)
+        if f.tgt not in self.os:
+            self.add_object(f.tgt)
         
         if f.src not in self.ms.keys():
             self.ms[f.src]={}
@@ -124,17 +192,33 @@ class Category:
             
         if type(f)==DataMorphism:
             self.input.append(f)
-            
+        elif type(f)==KernelMorphism:
+            self.kernel_ms.append(f)
+        elif type(f)==OptimisableMorphism:
+            self.optimizable_ms.append(f)
             
         return
     
+    def all_morphisms(self):
+        ms = [] 
+        for src in self.ms.keys():
+            for tgt in self.ms[src].keys():
+                ms+=self.ms[src][tgt]
+        return ms+self.input+self.optimizable_ms
+    
     def add_object(self,o):
-        self.os.add(o)
+        if o not in self.os:            
+            self.os.add(o)
             
-        
-        for m in o.special.values():
-            self.add_morphism(m)
-        self.ms[o]={}
+            if isinstance(o, SpecialObject):
+                for so in o.obs:
+                    self.add_object(so)                
+            
+                for m in o.special:
+                    self.add_morphism(m)
+            
+            
+            
         
     def subcategory(self,*morphisms):
         C=Category()
@@ -148,14 +232,18 @@ class Category:
             return f.tgt.eq(f(x),g(x))
     
     #get all morpisms going from src
-    def one_step(self,src):
+    def mors_from(self,src,kernel_only=False):
         out = []
     
-        if src not in self.ms.keys():
-            return []
-    
-        for tgt in self.ms[src].keys():
-            out+=self.ms[src][tgt]
+        
+        if not kernel_only:
+            for tgt in self.ms[src].keys():
+                out+=self.ms[src][tgt]
+        
+        
+        for kf in self.kernel_ms:
+            if type(src)==kf.src:
+                out.append(kf)
         return out
     
     #returns a dict of lists where the key is the target of the morphisms in the list,going from src
@@ -164,7 +252,7 @@ class Category:
         
             
         paths={}
-        step=self.one_step(src)
+        step=self.mors_from(src)
 #        visited.append(src)
         #print(list(map(str,visited)))
         for f in step:
@@ -222,16 +310,65 @@ class Category:
             
     def draw(self):
         G=nx.DiGraph()
+        color_key={Morphism:'black',
+                   KernelMorphism:'black',
+                   HiddenMorphism:'gray',
+                   DataMorphism:'red',
+                   OptimisableMorphism:'purple'}
         
         map(lambda n:G.add_node(n),self.os)
         
         for src in self.ms.keys():
             for tgt in self.ms[src].keys():
-                G.add_edge(src,tgt)
+                if (src is not None) and (tgt is not None) and not (src==tgt):
+                    for mor in self.ms[src][tgt]:
+                        G.add_edge(src,tgt,color=color_key[type(mor)])
         
-        nx.draw(G, with_labels=True, font_weight='bold')
+        
+        nx.draw(G, with_labels=True, font_weight='bold',edge_color=nx.get_edge_attributes(G,'color').values())
         plt.show()
         return          
+    
+    def __index__(self,src,tgt):
+        k_mors = list(filter(lambda km:src.type==km.src and tgt.type==km.tgt,self.kernel_ms))
+        return self.ms[src,tgt]+k_mors
+#a fixed diagram defined by the shape of a category that takes morphisms and obejcts to replace the placeholders with
+class Diagram(Category):
+    def __init__(self,c:Category,ob_list:list= None,mor_list:list = None):
+        
+        super().__init__()
+        for o in c.os:
+            self.add_object(o)
+        
+        
+        for m in c.all_morphisms():
+            self.add_morphism(HiddenMorphism(m.name, m.src, m.tgt))
+        
+        if ob_list or mor_list:
+            self._instantiate(ob_list,mor_list)
+        
+    def _instantiate(ob_list,mor_list):
+        if ob_list is not None:
+            for ob in ob_list:
+                for holder_ob in self.os:
+                    if holder_ob.name==ob.name:
+                        self.os.remove(holder_ob)
+                        self.os.add(ob)
+        if mor_list is not None:
+            for mor in mor_list:
+                for holder_mor in self.ms:
+                    if holder_mor.name==mor.name:
+                        h_i=self.ms[holder_mor.src][holder_mor.tgt].index(holder_mor)
+                        self.ms[holder_mor.src][holder_mor.tgt][h_i]=mor
+    
+    def instantiate(ob_list:list = None,mor_list:list = None):
+        return Diagram(self,ob_list,mor_list)
+    
+    
+    def commute_scores(self):
+        pass #implement later
+        
+
 
 def combine_dicts(d1,d2):
             
@@ -330,20 +467,43 @@ class NumberListCat(MetricStateCategory):
     def __call__(self,x):
         return NumberListCat(list(map (lambda pair:pair[0]+pair[1],zip(x.state,self.state))))
 
-        
-truestate = NumberListCat()
-guesstate = NumberListCat()
-
-P = NumberListCat()
-G = lambda x:x
-
-adj = Adjunction(guesstate,truestate,P,id)
-
-for i in range(300):
-    print(adj.e.state,adj.a.state,list_dist(adj.e,adj.a))
-    adj.optimize(list_list_delta,opt_criterion)
     
         
+def gen_abstract_category(n_obs,n_mors,mors_between_all_objects=True,max_name_length=3) -> Category:
+    from random import choice
+    names = []
+    def gen_name(l,upper=False):
+       from string import ascii_lowercase as letters
+       
+       def gen():
+           name = "".join([choice(letters) for i in range(choice(range(1,l+1)))])
+           if upper:
+               name = name.upper()
         
+           return name 
+       name = gen()
+       while (name in names):
+           name = gen()
+       
+       names.append(name)
+       return name
+       
+     
+    obs = [Object(gen_name(max_name_length,True)) for n in range(n_obs) ]       
+    mors = [Morphism(gen_name(max_name_length), choice(obs), choice(obs)) for n in range(n_mors) ]       
     
+    if mors_between_all_objects:
+        for o1 in obs:
+            for o2 in obs:
+                mors.append(Morphism("".join([o1.name.lower(),"to",o2.name.lower()]), o1, o2))
+                mors.append(Morphism("".join([o2.name.lower(),"to",o1.name.lower()]), o2, o1))
+     
+    C=Category()
+    for m in mors:
+        C.add_morphism(m)
+    #print(C.os,"\n",C.ms)
+    return C
+
+
+
     
