@@ -88,11 +88,11 @@ def cat2tensor(C):
     out = []
     div=len(C)
     for mor in C:
-        out+=[0,mor[0][0],1,mor[0][1][0],1,mor[0][1][1]]
-        out+=[2,0]
+        out+=[mor[0][0]/div,mor[0][1][0],mor[0][1][1]]
+        #out+=[2,0]
         
         for k,v in mor[1].items():
-            out+=[0,k,0,v]
+            out+=[k/div,v/div]
         
     
     out+=[3,0]
@@ -102,7 +102,7 @@ def expr2tensor(expr,div=1):
     out = []
     
     for f in expr:
-        out+=[1,f]
+        out+=[f/div]
         
     return out
     
@@ -189,15 +189,16 @@ def one_hot_compare(x,y):
 
 def learn_composition(model,params=None):
 
-    encdec = lambda x,y:model(x,y)-1
+    encdec = lambda x:model(x)-1
     
     opt = optim.Adam(params if params!=None else model.parameters())
     
     loss=nn.MSELoss()
     
     err_plot = []
-        
-    numornone=lambda x,div=1:[1,-1] if x==None else [1,x/div]
+    out,outp=0,0
+    
+    numornone=lambda x,div=1:-1 if x==None else x/div
     try:
         for e in range(10000):
             
@@ -224,12 +225,15 @@ def learn_composition(model,params=None):
             inp=nn.utils.rnn.pad_sequence(list(map(lambda i:i[0],batch)))
             inp=inp.view(-1,batchsize,embedding)
             
+            hidden = torch.tensor(np.zeros((layers,25,8)))
+            
             outp = torch.stack(list(map(lambda i:i[1],batch)))
             outp = outp.view(-1,batchsize,embedding)
 
-            out=encdec(inp,outp)#,outp)
             
-            l = loss(out,outp).mean()#loss(out,torch.tensor(list(map(lambda b:b[1],batch)),dtype=torch.float32)).mean()
+            out=encdec(inp)#,outp)
+            
+            l = loss(out,outp.view(batchsize,-1)).mean()#loss(out,torch.tensor(list(map(lambda b:b[1],batch)),dtype=torch.float32)).mean()
             
             err_plot.append([l.item()])
             print(e,err_plot[-1])
@@ -238,23 +242,25 @@ def learn_composition(model,params=None):
     except KeyboardInterrupt:
         pass        
     plot_data(err_plot)  
-
+    
+    
+    print (outp.view(batchsize,-1),out)
     return model
 
 
 torch.set_default_dtype(torch.float32)
 batchsize=25
-embedding=2
-
+embedding=1
+layers=3
 
 #enc = nn.TransformerEncoderLayer(2,2,32)
 
-encdecnet =nn.Transformer(2,2,1,1,16)
+encdecnet =nn.LSTM(1,16,layers,bidirectional=True)##nn.Transformer(1,1,1,1,8)
 
-
+interpreter=create_fc_network(32,8,3,1)
         
-model = encdecnet
+model = lambda x:interpreter(encdecnet(x)[0][-1])
 
 
-learn_composition(model)
+learn_composition(model,params=list(encdecnet.parameters())+list(interpreter.parameters()))
             

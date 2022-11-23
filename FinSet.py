@@ -5,6 +5,7 @@ Created on Mon Mar 16 17:08:51 2020
 @author: Simas
 """
 from random import choice
+from framework import *
 
             
 def rand_fin_f(srcS,tgtS):
@@ -38,6 +39,7 @@ if __name__=="__main__":
     C.add_morphism(Morphism("0->2",rand_fin_f(5,5),obs[0],obs[2]))
     C.add_morphism(DataMorphism("test",[1,2,3],obs[0]))
     
+    C.draw()
     t=C.diagram_commute_scores()
     print("SCORES:\n")
     
@@ -57,7 +59,7 @@ if __name__=="__main__":
 #         
 #     
 # =============================================================================
-    C.draw()
+
     print(print_dict(C.ms[obs[0]]))
     for ob in obs:
         print(str(ob)+" : " ,print_dict(C.all_paths_from(ob)))

@@ -8,7 +8,7 @@ Created on Tue Mar 10 16:54:58 2020
 from random import *
 import copy
 
-
+from torch import Tensor
 import networkx as nx
 import matplotlib.pyplot as plt
 
@@ -135,8 +135,16 @@ class KernelMorphism(Morphism):
         self.name = name
         self.f=f
         
-        self.src=src_t
-        self.tgt=tgt_t
+        if type(src_t)==torch.Tensor:
+            self.src=src_t.shape
+        else:
+            self.src=src_t
+        
+        
+        if type(tgt_t)==torch.Tensor:
+            self.tgt=tgt_t.shape
+        else:
+            self.tgt=tgt_t
         
         self.special = {}
         
